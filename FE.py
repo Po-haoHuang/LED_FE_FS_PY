@@ -4,52 +4,40 @@ Created on Mon Oct 20 14:35:09 2014
 
 @author: paul
 """
-
-import sys
 import os
 import pandas as pd
 import numpy
 import csv
 import glob
+import peakdetect
 
 
-def FE(userfilename = "E:\\LED_Data\\LifeCycleList.csv", filedir = "E:\\LED_Data\\18.non_nominal_0912\\current\\", featurefile = "E:\\pythonanalysis\\feature.txt"):
-    global local_vars
-
+def FE(begin,\
+    end,\
+    userfilename = "E:\\LED_Data\\LifeCycleList.csv",\
+    filedir = "E:\\LED_Data\\18.non_nominal_0912\\current\\",\
+    featurefile = "E:\\pythonanalysis\\feature.txt"):
 
     # read input from 3 files
     userfileList = pd.read_csv(userfilename)
     featureList = [line.strip('\n') for line in open(featurefile)]
+
     #read current file and filtered by time period
     os.chdir(filedir)
     currentfilenameList = glob.glob("*.csv")
     currentfilelist = list()
     cfilteredfilenameList = list()
     for filename in currentfilenameList:
-        for filenum in range(6,7):
+        for filenum in range(begin,end+1):
             if (int(filename[3:7]) >= userfileList.ix[filenum,1]) & (int(filename[3:7]) <= userfileList.ix[filenum,2]):
                 temp = pd.read_csv(filename)
                 if numpy.size(temp, 0) >= 900:
                     currentfilelist.append(temp)
                     cfilteredfilenameList.append(filename)
-    local_vars = featureList
-    currentfilelist
-#    tempselected = [line.strip('\n') for line in open(featurefile)]
-#    selectedfeature = [line.split(':', 1) for line in tempselected]
 
-    #take the selected attribute out for calculating features
-#    calculist = list()
-#    for (attr, feature) in selectedfeature:
-#        if attr in col.columns:
-#            calculist.append((attr, feature))
-#        else:
-#            print(attr+" is not in csv file!")
-#
-#    if not calculist:
-#        print("No feature calculated!")
-#        return
     totalresult = list()
     result = list()
+
 
     #calculate features
     index = 0
@@ -59,7 +47,19 @@ def FE(userfilename = "E:\\LED_Data\\LifeCycleList.csv", filedir = "E:\\LED_Data
         for i,col in file.iteritems():
             if i!="DataTime":
                 for fea in featureList:
-                    if fea == 'mean':
+                    if fea == 'maxpeak':
+                        try:
+                            maxtab, mintab = peakdetect.peakdet(col,.3)
+                            result.append(maxtab[:,1].max())
+                        except:
+                            result.append(float('nan'))
+                    elif fea == 'minpeak':
+                        try:
+                            maxtab, mintab = peakdetect.peakdet(col,.3)
+                            result.append(mintab[:,1].min())
+                        except:
+                            result.append(float('nan'))
+                    elif fea == 'mean':
                         try:
                             result.append(col.mean())
                         except:
@@ -115,20 +115,15 @@ def FE(userfilename = "E:\\LED_Data\\LifeCycleList.csv", filedir = "E:\\LED_Data
                         print("Please Enter valid Feature:mean,variance,skewness,kurtosis\
                         ,max,min,RMS,std,range,iqr")
         if result:
-            #print(result)
             totalresult.append(result[:])
         result.clear()
-    #print (totalresult[len(totalresult)-1])
-#
+
+
     # output
     if not totalresult:
         print("No feature calculated!")
         return
-    os.chdir("E:\\pythonanalysis\\")
-    if sys.version_info >= (3, 0, 0):
-        f = open("totalResult.csv", 'w', newline='')
-    else:
-        f = open("totalResult.csv", 'wb')
+    f = open("totalResult.csv", 'w', newline='')
     w = csv.writer(f)
     namelist = []
 
@@ -138,12 +133,18 @@ def FE(userfilename = "E:\\LED_Data\\LifeCycleList.csv", filedir = "E:\\LED_Data
         if name != "DataTime":
             for fea in featureList:
                 namelist.append(name+"_"+fea)
+
     # write labels
     w.writerow(namelist)
+
     # write values
     for r in totalresult:
         w.writerow(r)
     f.close()
 
+#For module test
+#============================================================
 if __name__ == '__main__':
-	FE()
+    #input cycle num begin, end
+	FE(begin = 6,end = 7)
+#============================================================
